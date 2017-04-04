@@ -19,6 +19,10 @@ class _Selector {
         return this.elems[0];
     }
 
+    on(event, cb) {
+        this.forEach(elem => elem.addEventListener(event, cb));
+    }
+
 }
 
 function $(selector) {
@@ -124,14 +128,21 @@ class _AndesiteInstance {
             let id = "a-" + name;
             $a.ajax("static/component/" + name + ".html", doc => {
                 this._importRegistry[id] = doc;
-                customElements.define(id, _StandardComponent);
+                customElements.define(id, class extends _StandardComponent {
+                    constructor() {
+                        super();
+                    }
+                });
                 this._componentRegistry.push(id);
             });
         });
     }
 
     ready(cb) {
-        this._readyHandlers.push(cb);
+        if (document.readyState === "loading")
+            this._readyHandlers.push(cb);
+        else
+            cb();
     }
 
     _ready() {
@@ -158,4 +169,4 @@ const $a = new _AndesiteInstance();
 if (document.readyState !== "loading")
     $a._ready();
 else
-    document.addEventListener("DOMContentLoaded", () => $a.ready());
+    document.addEventListener("DOMContentLoaded", () => $a._ready());
