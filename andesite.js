@@ -1,4 +1,10 @@
 "use strict";
+if (!Object.prototype.forEach) {
+    Object.prototype.forEach = function(cb) {
+        Object.entries(this).forEach(cb);
+    };
+}
+
 class _Selector extends Array {
 
     constructor(selector) {
@@ -43,18 +49,19 @@ class _StandardComponent extends HTMLElement {
     constructor() {
         super();
         this._attrBacking = {};
+        $a.forEach(this.attributes, entry => this._attrBacking[entry.name] = entry.value)
         this.attr = new Proxy(this._attrBacking, {
-            get: (target, name) => {
-                if (name in target) {
-                    return target[name];
-                } else {
-                    target[name] = this.getAttribute(name);
-                    return target[name];
-                }
-            },
             set: (target, name, val) => {
                 target[name] = val;
                 super.setAttribute(name, val);
+                this._domUpdate();
+                return true;
+            }
+        });
+        this._dataBacking = {};
+        this.data = new Proxy(this._dataBacking, {
+            set: (target, name, val) => {
+                target[name] = val;
                 this._domUpdate();
                 return true;
             }
@@ -87,13 +94,14 @@ class _StandardComponent extends HTMLElement {
         this._segs = [];
         let str = this._shadow.innerHTML;
         let match = null;
-        while ((match = str.match(/\${([$A-Z_][0-9A-Z_$]*)}/i)) !== null) {
+        while ((match = str.match(/\${([$A-Z_][0-9A-Z_$.]*)}/i)) !== null) {
             if (match.index > 0) {
                 let preMatch = str.substring(0, match.index);
                 this._segs.push(vals => preMatch);
             }
             let varName = match[1];
-            this._segs.push(vals => vals[varName]);
+            console.log(this, varName);
+            this._segs.push(vals => vals[varName] || "${" + varName + "}");
             str = str.substring(match.index + match[0].length);
         }
         if (!!str)
@@ -107,7 +115,16 @@ class _StandardComponent extends HTMLElement {
     }
 
     _domUpdate() {
-        this._shadow.innerHTML = this._segs.map(seg => seg(this.attr)).join("");
+        let props = {};
+        this._attrBacking.forEach(e => props["attr." + e[0]] = e[1]);
+        let addToProps = (elem, root) => {
+            if (elem[1] instanceof Object)
+                elem[1].forEach(subElem => addToProps(subElem, elem[0] + "."));
+            else
+                props[elem[0]] = elem[1];
+        };
+        this._dataBacking.forEach(elem => addToProps(elem, ""));
+        this._shadow.innerHTML = this._segs.map(seg => seg(props)).join("");
     }
 
 }
