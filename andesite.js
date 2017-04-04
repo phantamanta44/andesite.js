@@ -1,22 +1,19 @@
 "use strict";
-class _Selector {
+class _Selector extends Array {
 
     constructor(selector) {
+        super();
         this.selector = selector;
-        this.elems = [];
         this._updateElems();
     }
 
     _updateElems() {
-        this.elems = document.querySelectorAll(this.selector);
-    }
-
-    forEach(cb) {
-        this.elems.forEach(cb);
+        this.length = 0;
+        document.querySelectorAll(this.selector).forEach(elem => this.push(elem));
     }
 
     get first() {
-        return this.elems[0];
+        return this[0];
     }
 
     on(event, cb) {
