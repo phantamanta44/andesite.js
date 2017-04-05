@@ -9,16 +9,16 @@ class _Selector extends Array {
 
     constructor(selector) {
         super();
-        this.selector = selector;
+        this._selector = selector;
         this._updateElems();
     }
 
     get selector() {
-        return this.selector;
+        return this._selector;
     }
 
     set selector(val) {
-        this.selector = val;
+        this._selector = val;
         this._updateElems;
     }
 
@@ -90,15 +90,6 @@ class _StandardComponent extends HTMLElement {
 
     setAttribute(name, val) {
         this.attr[name] = val;
-    }
-
-    set innerHTML(val) {
-        this.innerHTML = val;
-        this.data.param = val;
-    }
-
-    get innerHTML() {
-        return this.data.param;
     }
 
     set id(val) {
