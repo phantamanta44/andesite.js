@@ -64,7 +64,6 @@ class _StandardComponent extends HTMLElement {
             }
         });
         this._observer = new MutationObserver((m) => {
-            console.log(m);
             this._populateAttributes();
             this._domUpdate();
         });
