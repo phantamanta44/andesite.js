@@ -13,6 +13,15 @@ class _Selector extends Array {
         this._updateElems();
     }
 
+    get selector() {
+        return this.selector;
+    }
+
+    set selector(val) {
+        this.selector = val;
+        this._updateElems;
+    }
+
     _updateElems() {
         this.length = 0;
         document.querySelectorAll(this.selector).forEach(elem => this.push(elem));
@@ -32,13 +41,10 @@ function $(selector) {
     return new Proxy(new _Selector(selector), {
         get: (target, name) => name in target ? target[name] : target.first[name],
         set: (target, name, val) => {
-            if (name in target) {
+            if (name in target)
                 target[name] = val;
-                if (name === "selector")
-                    target._updateElems();
-            } else {
+            else
                 target.first[name] = val;
-            }
             return true;
         }
     });
@@ -49,7 +55,6 @@ class _StandardComponent extends HTMLElement {
     constructor() {
         super();
         this._attrBacking = {};
-        $a.forEach(this.attributes, entry => this._attrBacking[entry.name] = entry.value)
         this.attr = new Proxy(this._attrBacking, {
             set: (target, name, val) => {
                 target[name] = val;
@@ -58,6 +63,12 @@ class _StandardComponent extends HTMLElement {
                 return true;
             }
         });
+        this._observer = new MutationObserver((m) => {
+            console.log(m);
+            this._populateAttributes();
+            this._domUpdate();
+        });
+        this._observer.observe(this, {attributes: true, characterData: true, childList: true});
         this._dataBacking = {};
         this.data = new Proxy(this._dataBacking, {
             set: (target, name, val) => {
@@ -66,14 +77,29 @@ class _StandardComponent extends HTMLElement {
                 return true;
             }
         });
+        this._populateAttributes();
         this._shadow = null;
         this._segs = null;
-        if (this._domInit())
-            this._domUpdate();
+        this._domInit()
+        this._domUpdate();
+    }
+
+    _populateAttributes() {
+        $a.forEach(this.attributes, entry => this._attrBacking[entry.name] = entry.value);
+        this._dataBacking.param = this.innerHTML;
     }
 
     setAttribute(name, val) {
         this.attr[name] = val;
+    }
+
+    set innerHTML(val) {
+        this.innerHTML = val;
+        this.data.param = val;
+    }
+
+    get innerHTML() {
+        return this.data.param;
     }
 
     set id(val) {
@@ -84,12 +110,8 @@ class _StandardComponent extends HTMLElement {
         return this.attr.id;
     }
 
-    attributeChangedCallback(name, oldVal, newVal) {
-        this._attrBacking[name] = newVal;
-    }
-
     _domInit() {
-        this._shadow = this.attachShadow({mode: "open"});
+        this._shadow = this.attachShadow({mode: "closed"});
         this._shadow.innerHTML = $a._importRegistry[this.tagName.toLowerCase()];
         this._segs = [];
         let str = this._shadow.innerHTML;
@@ -100,18 +122,11 @@ class _StandardComponent extends HTMLElement {
                 this._segs.push(vals => preMatch);
             }
             let varName = match[1];
-            console.log(this, varName);
             this._segs.push(vals => vals[varName] || "${" + varName + "}");
             str = str.substring(match.index + match[0].length);
         }
         if (!!str)
             this._segs.push(vals => str);
-        if (!!this.innerHTML) {
-            this.attr.param = this.innerHTML;
-            this.innerHTML = "";
-            return false;
-        }
-        return true;
     }
 
     _domUpdate() {
@@ -129,9 +144,30 @@ class _StandardComponent extends HTMLElement {
 
 }
 
+class _MessageBus {
+
+    constructor() {
+        this._listeners = {};
+    }
+
+    on(msgType, cb) {
+        if (msgType in this._listeners)
+            this._listeners[msgType].push(cb);
+        else
+            this._listeners[msgType] = [cb];
+    }
+
+    post(msg) {
+        if (!!msg.type && msg.type in this._listeners)
+            this._listeners[msg.type].forEach(listener => listener(msg));
+    }
+
+}
+
 class _AndesiteInstance {
 
     constructor() {
+        this.msgBus = new _MessageBus();
         this._readyHandlers = [];
         this._componentRegistry = [];
         this._importRegistry = {};

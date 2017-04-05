@@ -5,6 +5,7 @@
 	<script src="../andesite.js"></script>
 	<script>
 		$a.component('button', 'app');
+		$a.msgBus.on('button', console.log);
 	</script>
 	<a-app title="Hello, world!" subtitle="This is an example of Andesite!"></a-app>
 </body>
