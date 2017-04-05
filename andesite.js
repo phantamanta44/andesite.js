@@ -19,7 +19,7 @@ class _Selector extends Array {
 
     set selector(val) {
         this._selector = val;
-        this._updateElems;
+        this._updateElems();
     }
 
     _updateElems() {
@@ -63,7 +63,7 @@ class _StandardComponent extends HTMLElement {
                 return true;
             }
         });
-        this._observer = new MutationObserver((m) => {
+        this._observer = new MutationObserver(() => {
             this._populateAttributes();
             this._domUpdate();
         });
@@ -79,7 +79,7 @@ class _StandardComponent extends HTMLElement {
         this._populateAttributes();
         this._shadow = null;
         this._segs = null;
-        this._domInit()
+        this._domInit();
         this._domUpdate();
     }
 
