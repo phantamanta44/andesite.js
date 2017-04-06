@@ -93,7 +93,7 @@ class _StandardComponent extends HTMLElement {
 
     _populateAttributes() {
         $a.forEach(this.attributes, entry => this._attrBacking[entry.name] = entry.value);
-        this._dataBacking.param = this.innerHTML;
+        this._dataBacking.param = super.innerHTML;
     }
 
     setAttribute(name, val) {
@@ -121,32 +121,41 @@ class _StandardComponent extends HTMLElement {
         this._shadow = this.attachShadow({mode: "closed"});
         this._shadow.innerHTML = $a._importRegistry[this.tagName.toLowerCase()];
         this._targets = [];
+        console.log(this, "======");
         let parseTree = parent => {
             parent.childNodes.forEach(child => {
                 if (child.nodeType === 3) {
-                    // text node
+                    let segs = _StandardComponent._parseInterpolators(child.nodeValue);
+                    if (!!segs)
+                        this._targets.push({type: 0, elem: child, segs: segs});
+                    console.log(0, child.nodeValue, segs);
                 } else if (!!child.attributes) {
                     $a.forEach(child.attributes, attr => {
-                        // attr
+                        let segs = _StandardComponent._parseInterpolators(attr.value);
+                        if (!!segs)
+                            this._targets.push({type: 1, elem: child, name: attr.name, segs: segs});
+                        console.log(1, attr, segs);
                     });
                 }
                 parseTree(child);
             });
         };
-        parseTree(this);
-        // let str = this._shadow.innerHTML;
-        // let match = null;
-        // while ((match = str.match(/\${([$A-Z_][0-9A-Z_$.]*)}/i)) !== null) {
-        //     if (match.index > 0) {
-        //         let preMatch = str.substring(0, match.index);
-        //         this._segs.push(vals => preMatch);
-        //     }
-        //     let varName = match[1];
-        //     this._segs.push(vals => vals[varName] || "${" + varName + "}");
-        //     str = str.substring(match.index + match[0].length);
-        // }
-        // if (!!str)
-        //     this._segs.push(vals => str);
+        parseTree(this._shadow);
+        /*
+        let str = this._shadow.innerHTML;
+        let match = null;
+        while ((match = str.match(/\${([$A-Z_][0-9A-Z_$.]*)}/i)) !== null) {
+            if (match.index > 0) {
+                let preMatch = str.substring(0, match.index);
+                this._segs.push(vals => preMatch);
+            }
+            let varName = match[1];
+            this._segs.push(vals => vals[varName] || "${" + varName + "}");
+            str = str.substring(match.index + match[0].length);
+        }
+        if (!!str)
+            this._segs.push(vals => str);
+        */
     }
 
     _domUpdate() {
@@ -159,10 +168,42 @@ class _StandardComponent extends HTMLElement {
                 props[elem[0]] = elem[1];
         };
         this._dataBacking.forEach(elem => addToProps(elem, ""));
-        this._shadow.innerHTML = this._segs.map(seg => seg(props)).join("");
+        let resolve = target => target.segs.map(seg => seg(props)).join("");
+        // this._shadow.innerHTML = this._segs.map(seg => seg(props)).join("");
+        this._targets.forEach(target => {
+            switch (target.type) {
+                case 0:
+                    target.elem.nodeValue = resolve(target);
+                    break;
+                case 1:
+                    target.elem.setAttribute(target.name, resolve(target));
+                    break;
+            }
+        });
+    }
+
+    static _parseInterpolators(str) {
+        let segs = [];
+        let match = null;
+        while ((match = str.match(_StandardComponent._propPattern)) !== null) {
+            if (match.index > 0) {
+                let preMatch = str.substring(0, match.index);
+                segs.push(vals => preMatch);
+            }
+            let varName = match[1];
+            let provider = vals => vals[varName] || "!{" + varName + "}";
+            provider.isVar = true;
+            segs.push(provider);
+            str = str.substring(match.index + match[0].length);
+        }
+        if (!!str)
+            segs.push(vals => str);
+        return (segs.length < 1 || (segs.length == 1 && !segs[0].isVar)) ? null : segs;
     }
 
 }
+
+_StandardComponent._propPattern = /\${([$A-Z_][0-9A-Z_$.]*)}/i
 
 class _MessageBus {
 
