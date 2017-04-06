@@ -121,41 +121,23 @@ class _StandardComponent extends HTMLElement {
         this._shadow = this.attachShadow({mode: "closed"});
         this._shadow.innerHTML = $a._importRegistry[this.tagName.toLowerCase()];
         this._targets = [];
-        console.log(this, "======");
         let parseTree = parent => {
             parent.childNodes.forEach(child => {
                 if (child.nodeType === 3) {
                     let segs = _StandardComponent._parseInterpolators(child.nodeValue);
                     if (!!segs)
                         this._targets.push({type: 0, elem: child, segs: segs});
-                    console.log(0, child.nodeValue, segs);
                 } else if (!!child.attributes) {
                     $a.forEach(child.attributes, attr => {
                         let segs = _StandardComponent._parseInterpolators(attr.value);
                         if (!!segs)
                             this._targets.push({type: 1, elem: child, name: attr.name, segs: segs});
-                        console.log(1, attr, segs);
                     });
                 }
                 parseTree(child);
             });
         };
         parseTree(this._shadow);
-        /*
-        let str = this._shadow.innerHTML;
-        let match = null;
-        while ((match = str.match(/\${([$A-Z_][0-9A-Z_$.]*)}/i)) !== null) {
-            if (match.index > 0) {
-                let preMatch = str.substring(0, match.index);
-                this._segs.push(vals => preMatch);
-            }
-            let varName = match[1];
-            this._segs.push(vals => vals[varName] || "${" + varName + "}");
-            str = str.substring(match.index + match[0].length);
-        }
-        if (!!str)
-            this._segs.push(vals => str);
-        */
     }
 
     _domUpdate() {
@@ -169,7 +151,6 @@ class _StandardComponent extends HTMLElement {
         };
         this._dataBacking.forEach(elem => addToProps(elem, ""));
         let resolve = target => target.segs.map(seg => seg(props)).join("");
-        // this._shadow.innerHTML = this._segs.map(seg => seg(props)).join("");
         this._targets.forEach(target => {
             switch (target.type) {
                 case 0:
