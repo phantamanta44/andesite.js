@@ -8,9 +8,9 @@ if (!Object.prototype.forEach) {
 if (!Array.prototype.flatMap) {
     Array.prototype.flatMap = function(mapper) {
         let children = [];
-        this.forEach(elem => elem.children
-            .filter(elem => !!elem.children)
-            .forEach(children.push));
+        this.map(elem => mapper(elem))
+            .filter(elem => !!elem)
+            .forEach(elem => elem.forEach(children.push));
         return children;
     };
 }
@@ -19,7 +19,7 @@ class _Selector extends Array {
 
     constructor(data) {
         super();
-        if (data instanceof String)
+        if (typeof(data) === "string")
             document.querySelectorAll(data).forEach(elem => this.push(elem));
         else if (data instanceof Array)
             data.forEach(this.push);
@@ -31,12 +31,20 @@ class _Selector extends Array {
         return $(super.filter(filter));
     }
 
+    find(selector) {
+        return this.filter(elem => elem.matches(selector));
+    }
+
     get first() {
         return this[0];
     }
 
     get children() {
         return $(this.flatMap(elem => elem.children));
+    }
+
+    search(selector) {
+        return $(this.flatMap(elem => elem.querySelectorAll(selector)));
     }
 
     on(event, cb) {
@@ -138,6 +146,9 @@ class _StandardComponent extends HTMLElement {
             });
         };
         parseTree(this._shadow);
+        $(this._shadow).search("script")
+            .filter(elem => !!elem.innerText.trim())
+            .forEach(elem => _StandardComponent._runScript.call(elem, elem.innerText));
     }
 
     _domUpdate() {
@@ -180,6 +191,11 @@ class _StandardComponent extends HTMLElement {
         if (!!str)
             segs.push(vals => str);
         return (segs.length < 1 || (segs.length == 1 && !segs[0].isVar)) ? null : segs;
+    }
+
+    static _runScript(script) {
+        console.log("Running: " + script);
+        eval(script);
     }
 
 }

@@ -1,3 +1,6 @@
 <h1>${attr.title}</h1>
 <p>${attr.subtitle}</p>
 <a-button id="#b">Press me!</a-button>
+<script>
+    $("#b").on("click", () => $a.msgBus.post({type: 'button', msg: 'pressed'}));
+</script>
