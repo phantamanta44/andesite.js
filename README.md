@@ -7,7 +7,7 @@ index.html
 ```html
 <head>
 	<title>Andesite Example</title>
-<head>
+</head>
 <body>
 	<script src="../andesite.js"></script>
 	<script>
