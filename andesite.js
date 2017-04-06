@@ -184,7 +184,7 @@ class _StandardComponent extends HTMLElement {
             if (elem[1] instanceof Object)
                 elem[1].forEach(subElem => addToProps(subElem, elem[0] + "."));
             else
-                props[elem[0]] = elem[1];
+                props[root + elem[0]] = elem[1];
         };
         this._dataBacking.forEach(elem => addToProps(elem, ""));
         let resolve = target => target.segs.map(seg => seg(props)).join("");
