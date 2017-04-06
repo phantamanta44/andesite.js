@@ -49,6 +49,26 @@ class _Selector extends Array {
         this.forEach(elem => elem.addEventListener(event, cb));
     }
 
+    get value() { // TODO More comprehensive switch
+        switch (this.first.getAttribute("type").toLowerCase()) {
+            case "checkbox":
+                return this.first.checked;
+            default:
+                return this.first.value;
+        }
+    }
+
+    set value(val) {
+        switch (this.first.getAttribute("type").toLowerCase()) {
+            case "checkbox":
+                this.first.checked = val;
+                break;
+            default:
+                this.first.value = val;
+                break;
+        }
+    }
+
 }
 
 function $(selector) {
@@ -134,11 +154,19 @@ class _StandardComponent extends HTMLElement {
                     if (!!segs)
                         this._targets.push({type: 0, elem: child, segs: segs});
                 } else if (!!child.attributes) {
-                    $a.forEach(child.attributes, attr => {
+                    $a.filter(child.attributes, attr => !attr.name.startsWith("a-")).forEach(attr => {
                         let segs = _StandardComponent._parseInterpolators(attr.value);
                         if (!!segs)
                             this._targets.push({type: 1, elem: child, name: attr.name, segs: segs});
                     });
+                    let attrVal;
+                    if (!!(attrVal = child.getAttribute("a-bind"))) {
+                        let setter = this._setterFor(attrVal);
+                        let childSel = $(child);
+                        childSel.on("input", () => setter(childSel.value));
+                        childSel.on("change", () => setter(childSel.value));
+                        setter(childSel.value);
+                    }
                 }
                 parseTree(child);
             });
@@ -172,6 +200,22 @@ class _StandardComponent extends HTMLElement {
         });
     }
 
+    _setterFor(varName) {
+        if (varName.startsWith("attr.")) {
+            varName = varName.substring(5);
+            return val => this.attr[varName] = val;
+        }
+        let segs = varName.split(".");
+        let obj = this.data;
+        for (let i = 0; i < segs.length - 1; i++) {
+            if (!(segs[i] in obj))
+                obj[segs[i]] = {};
+            obj = obj[segs[i]];
+        }
+        varName = segs[segs.length - 1];
+        return val => obj[varName] = val;
+    }
+
     _runScript(script) {
         let $ = selector => typeof(selector) === "string" ? $a.query(this._shadow).find(selector) : $a.query(selector);
         eval(script);
@@ -186,7 +230,7 @@ class _StandardComponent extends HTMLElement {
                 segs.push(vals => preMatch);
             }
             let varName = match[1];
-            let provider = vals => vals[varName] || "!{" + varName + "}";
+            let provider = vals => varName in vals ? vals[varName] : "!{" + varName + "}";
             provider.isVar = true;
             segs.push(provider);
             str = str.substring(match.index + match[0].length);

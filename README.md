@@ -23,12 +23,34 @@ static/component/app.html
 <p>${attr.subtitle}</p>
 <a-button id="b">Press me!</a-button>
 <script>
-    $a.ready(() => {
-        $('#b').on('click', () => $a.msgBus.post({type: 'button'}));
-    });
+    $('#b').on('click', () => $a.msgBus.post({type: 'button'}));
 </script>
+<hr>
+<p>${text}</p>
+<input type="text" a-bind="text" value="Type something!">
+<hr>
+<p>Checkbox state: ${bool}</p>
+<input type="checkbox" a-bind="bool">
 ```
 static/component/button.html
 ```html
-<button>${param}</button>
+<div id="b">${param}</div>
+<style>
+    #b {
+        display: inline-block;
+        position: relative;
+        top: 0;
+        padding: 9px 16px;
+        background-color: #2196F3;
+        color: rgba(255, 255, 255, 0.87);
+        border-radius: 2px;
+        box-shadow: 0 3px 8px -4px #000;
+        user-select: none;
+        cursor: pointer;
+    }
+
+    #b:active {
+        top: 2px;
+    }
+</style>
 ```
