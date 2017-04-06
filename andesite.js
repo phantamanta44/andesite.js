@@ -7,11 +7,11 @@ if (!Object.prototype.forEach) {
 
 if (!Array.prototype.flatMap) {
     Array.prototype.flatMap = function(mapper) {
-        let children = [];
+        let subElems = [];
         this.map(elem => mapper(elem))
-            .filter(elem => !!elem)
-            .forEach(elem => elem.forEach(children.push));
-        return children;
+            .filter(col => !!col)
+            .forEach(col => $a.filter(col, subElem => !!subElem).forEach(subElem => subElems.push(subElem)));
+        return subElems;
     };
 }
 
@@ -22,17 +22,15 @@ class _Selector extends Array {
         if (typeof(data) === "string")
             document.querySelectorAll(data).forEach(elem => this.push(elem));
         else if (data instanceof Array)
-            data.forEach(this.push);
-        else if (data instanceof Element)
+            data.forEach(elem => this.push(elem));
+        else if (data instanceof Element || data instanceof Document || data instanceof DocumentFragment)
             this.push(data);
     }
 
     filter(filter) {
-        return $(super.filter(filter));
-    }
-
-    find(selector) {
-        return this.filter(elem => elem.matches(selector));
+        return typeof(selector) === "string"
+            ? this.filter(elem => elem.matches(selector))
+            : $(super.filter(filter));
     }
 
     get first() {
@@ -43,7 +41,7 @@ class _Selector extends Array {
         return $(this.flatMap(elem => elem.children));
     }
 
-    search(selector) {
+    find(selector) {
         return $(this.flatMap(elem => elem.querySelectorAll(selector)));
     }
 
@@ -146,9 +144,9 @@ class _StandardComponent extends HTMLElement {
             });
         };
         parseTree(this._shadow);
-        $(this._shadow).search("script")
+        $(this._shadow).find("script")
             .filter(elem => !!elem.innerText.trim())
-            .forEach(elem => _StandardComponent._runScript.call(elem, elem.innerText));
+            .forEach(elem => this._runScript(elem.innerText));
     }
 
     _domUpdate() {
@@ -174,6 +172,11 @@ class _StandardComponent extends HTMLElement {
         });
     }
 
+    _runScript(script) {
+        let $ = selector => typeof(selector) === "string" ? $a.query(this._shadow).find(selector) : $a.query(selector);
+        eval(script);
+    }
+
     static _parseInterpolators(str) {
         let segs = [];
         let match = null;
@@ -190,17 +193,12 @@ class _StandardComponent extends HTMLElement {
         }
         if (!!str)
             segs.push(vals => str);
-        return (segs.length < 1 || (segs.length == 1 && !segs[0].isVar)) ? null : segs;
-    }
-
-    static _runScript(script) {
-        console.log("Running: " + script);
-        eval(script);
+        return (segs.length < 1 || (segs.length === 1 && !segs[0].isVar)) ? null : segs;
     }
 
 }
 
-_StandardComponent._propPattern = /\${([$A-Z_][0-9A-Z_$.]*)}/i
+_StandardComponent._propPattern = /\${([$A-Z_][0-9A-Z_$.]*)}/i;
 
 class _MessageBus {
 
@@ -226,6 +224,7 @@ class _AndesiteInstance {
 
     constructor() {
         this.msgBus = new _MessageBus();
+        this.query = $;
         this._readyHandlers = [];
         this._componentRegistry = [];
         this._importRegistry = {};
@@ -261,6 +260,15 @@ class _AndesiteInstance {
         let length = collection.length;
         for (let i = 0; i < length; i++)
             cb(collection[i]);
+    }
+
+    filter(collection, predicate) {
+        let col = [];
+        $a.forEach(collection, elem => {
+            if (predicate(elem))
+                col.push(elem);
+        });
+        return col;
     }
 
     ajax(url, cb) {

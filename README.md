@@ -11,22 +11,22 @@ index.html
 <body>
 	<script src="../andesite.js"></script>
 	<script>
-		$a.component('header');
-		$a.component('button');
-		$a.ready(() =>
-			$("#button").on("click", () =>
-				$("#header").attr.subtitle = "Poking is rude!"
-			)
-		);
+		$a.component('button', 'app');
+		$a.msgBus.on('button', () => $('#app').attr.subtitle = 'Poking is rude!');
 	</script>
-	<a-header id="header" title="Hello, world!" subtitle="This is an example of Andesite!"></a-header>
-	<a-button id="button">Press Me!</a-button>
+	<a-app title="Hello, world!" subtitle="This is an example of Andesite!" id="app"></a-app>
 </body>
 ```
-static/component/header.html
+static/component/app.html
 ```html
-<h1>${title}</h1>
-<p>${subtitle}</p>
+<h1>${attr.title}</h1>
+<p>${attr.subtitle}</p>
+<a-button id="b">Press me!</a-button>
+<script>
+    $a.ready(() => {
+        $('#b').on('click', () => $a.msgBus.post({type: 'button'}));
+    });
+</script>
 ```
 static/component/button.html
 ```html

@@ -5,7 +5,7 @@
 	<script src="../andesite.js"></script>
 	<script>
 		$a.component('button', 'app');
-		$a.msgBus.on('button', console.log);
+		$a.msgBus.on('button', () => $('#app').attr.subtitle = 'Poking is rude!');
 	</script>
-	<a-app title="Hello, world!" subtitle="This is an example of Andesite!"></a-app>
+	<a-app title="Hello, world!" subtitle="This is an example of Andesite!" id="app"></a-app>
 </body>
