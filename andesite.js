@@ -5,30 +5,38 @@ if (!Object.prototype.forEach) {
     };
 }
 
+if (!Array.prototype.flatMap) {
+    Array.prototype.flatMap = function(mapper) {
+        let children = [];
+        this.forEach(elem => elem.children
+            .filter(elem => !!elem.children)
+            .forEach(children.push));
+        return children;
+    };
+}
+
 class _Selector extends Array {
 
-    constructor(selector) {
+    constructor(data) {
         super();
-        this._selector = selector;
-        this._updateElems();
+        if (data instanceof String)
+            document.querySelectorAll(data).forEach(elem => this.push(elem));
+        else if (data instanceof Array)
+            data.forEach(this.push);
+        else if (data instanceof Element)
+            this.push(data);
     }
 
-    get selector() {
-        return this._selector;
-    }
-
-    set selector(val) {
-        this._selector = val;
-        this._updateElems();
-    }
-
-    _updateElems() {
-        this.length = 0;
-        document.querySelectorAll(this.selector).forEach(elem => this.push(elem));
+    filter(filter) {
+        return $(super.filter(filter));
     }
 
     get first() {
         return this[0];
+    }
+
+    get children() {
+        return $(this.flatMap(elem => elem.children));
     }
 
     on(event, cb) {
@@ -78,7 +86,7 @@ class _StandardComponent extends HTMLElement {
         });
         this._populateAttributes();
         this._shadow = null;
-        this._segs = null;
+        this._targets = null;
         this._domInit();
         this._domUpdate();
     }
@@ -92,6 +100,15 @@ class _StandardComponent extends HTMLElement {
         this.attr[name] = val;
     }
 
+    set innerHTML(val) {
+        super.innerHTML = val;
+        this.data.param = val;
+    }
+
+    get innerHTML() {
+        return this.data.param;
+    }
+
     set id(val) {
         this.attr.id = val;
     }
@@ -103,20 +120,33 @@ class _StandardComponent extends HTMLElement {
     _domInit() {
         this._shadow = this.attachShadow({mode: "closed"});
         this._shadow.innerHTML = $a._importRegistry[this.tagName.toLowerCase()];
-        this._segs = [];
-        let str = this._shadow.innerHTML;
-        let match = null;
-        while ((match = str.match(/\${([$A-Z_][0-9A-Z_$.]*)}/i)) !== null) {
-            if (match.index > 0) {
-                let preMatch = str.substring(0, match.index);
-                this._segs.push(vals => preMatch);
-            }
-            let varName = match[1];
-            this._segs.push(vals => vals[varName] || "${" + varName + "}");
-            str = str.substring(match.index + match[0].length);
-        }
-        if (!!str)
-            this._segs.push(vals => str);
+        this._targets = [];
+        let parseTree = parent => {
+            parent.childNodes.forEach(child => {
+                if (child.nodeType === 3) {
+                    // text node
+                } else if (!!child.attributes) {
+                    $a.forEach(child.attributes, attr => {
+                        // attr
+                    });
+                }
+                parseTree(child);
+            });
+        };
+        parseTree(this);
+        // let str = this._shadow.innerHTML;
+        // let match = null;
+        // while ((match = str.match(/\${([$A-Z_][0-9A-Z_$.]*)}/i)) !== null) {
+        //     if (match.index > 0) {
+        //         let preMatch = str.substring(0, match.index);
+        //         this._segs.push(vals => preMatch);
+        //     }
+        //     let varName = match[1];
+        //     this._segs.push(vals => vals[varName] || "${" + varName + "}");
+        //     str = str.substring(match.index + match[0].length);
+        // }
+        // if (!!str)
+        //     this._segs.push(vals => str);
     }
 
     _domUpdate() {
