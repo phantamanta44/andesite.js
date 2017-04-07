@@ -41,6 +41,10 @@ class _Selector extends Array {
         return $(this.flatMap(elem => elem.children));
     }
 
+    get parent() {
+        return $(this.first.parentElement);
+    }
+
     find(selector) {
         return $(this.flatMap(elem => elem.querySelectorAll(selector)));
     }
@@ -103,13 +107,19 @@ class _StandardComponent extends HTMLElement {
         });
         this._observer.observe(this, {attributes: true, characterData: true, childList: true});
         this._dataBacking = {};
-        this.data = new Proxy(this._dataBacking, {
+        let nestedHandler = () => ({
+            get: (target, name) => {
+                return target[name] instanceof Object
+                    ? new Proxy(target[name], nestedHandler())
+                    : target[name];
+            },
             set: (target, name, val) => {
                 target[name] = val;
                 this._domUpdate();
                 return true;
             }
         });
+        this.data = new Proxy(this._dataBacking, nestedHandler());
         this._populateAttributes();
         this._shadow = null;
         this._targets = null;
@@ -150,12 +160,14 @@ class _StandardComponent extends HTMLElement {
         let parseTree = parent => {
             parent.childNodes.forEach(child => {
                 if (child.nodeType === 3) {
-                    let segs = _StandardComponent._parseInterpolators(child.nodeValue);
+                    let segs = _StandardComponent.parseInterpolators(child.nodeValue);
                     if (!!segs)
                         this._targets.push({type: 0, elem: child, segs: segs});
+                } else if (child.nodeType === 1 && child.nodeName === "A-FOREACH") {
+                    this._targets.push({type: 3, elem: child});
                 } else if (!!child.attributes) {
                     $a.filter(child.attributes, attr => !attr.name.startsWith("a-")).forEach(attr => {
-                        let segs = _StandardComponent._parseInterpolators(attr.value);
+                        let segs = _StandardComponent.parseInterpolators(attr.value);
                         if (!!segs)
                             this._targets.push({type: 1, elem: child, name: attr.name, segs: segs});
                     });
@@ -200,6 +212,9 @@ class _StandardComponent extends HTMLElement {
                 case 2:
                     target.elem.value = props[target.prop];
                     break;
+                case 3:
+                    target.elem.update(this._dataBacking);
+                    break;
             }
         });
     }
@@ -225,7 +240,7 @@ class _StandardComponent extends HTMLElement {
         eval(script);
     }
 
-    static _parseInterpolators(str) {
+    static parseInterpolators(str) {
         let segs = [];
         let match = null;
         while ((match = str.match(_StandardComponent._propPattern)) !== null) {
@@ -242,6 +257,44 @@ class _StandardComponent extends HTMLElement {
         if (!!str)
             segs.push(vals => str);
         return (segs.length < 1 || (segs.length === 1 && !segs[0].isVar)) ? null : segs;
+    }
+
+}
+
+class _IterationComponent extends HTMLElement {
+
+    constructor() {
+        super();
+        this._data = {};
+        this._src = this.getAttribute("a-in");
+        this._template = _StandardComponent.parseInterpolators(super.innerHTML);
+        this._domUpdate();
+    }
+
+    update(obj) {
+        let segs = this._src.split(".");
+        for (let i = 0; i < segs.length - 1; i++) {
+            if (!(segs[i] in obj))
+                obj[segs[i]] = {};
+            obj = obj[segs[i]];
+        }
+        this._data = obj[segs[segs.length - 1]];
+        this._domUpdate();
+    }
+
+    _domUpdate() {
+        this.innerHTML = "";
+        this._data.forEach(elem => {
+            let props = {};
+            let addToProps = (elem, root) => {
+                if (elem[1] instanceof Object)
+                    elem[1].forEach(subElem => addToProps(subElem, elem[0] + "."));
+                else
+                    props[root + elem[0]] = elem[1];
+            };
+            elem.forEach(prop => addToProps(prop, ""));
+            this.innerHTML += this._template.map(seg => seg(props)).join("");
+        });
     }
 
 }
@@ -276,6 +329,7 @@ class _AndesiteInstance {
         this._readyHandlers = [];
         this._componentRegistry = [];
         this._importRegistry = {};
+        customElements.define("a-foreach", _IterationComponent);
     }
 
     component(componentName) {
