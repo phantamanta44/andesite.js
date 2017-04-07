@@ -222,6 +222,7 @@ class _StandardComponent extends _BaseComponent {
 
     _domInit() {
         this._shadow = this.attachShadow({mode: "closed"});
+        this._shadow.srcComponent = this;
         this._shadow.innerHTML = $a._importRegistry[this.tagName.toLowerCase()];
         this._targets = this._parseTree(this._shadow);
         $(this._shadow).find("script")
@@ -265,13 +266,14 @@ class _StandardComponent extends _BaseComponent {
         }
         let segs = varName.split(".");
         let obj = this.data;
-        for (let i = 0; i < segs.length - 1; i++) {
-            if (!(segs[i] in obj))
-                obj[segs[i]] = {};
-            obj = obj[segs[i]];
+        return val => {
+            for (let i = 0; i < segs.length - 1; i++) {
+                if (!(segs[i] in obj))
+                    obj[segs[i]] = {};
+                obj = obj[segs[i]];
+            }
+            obj[segs[segs.length - 1]] = val;
         }
-        varName = segs[segs.length - 1];
-        return val => obj[varName] = val;
     }
 
     _setSilent(name, val) {
@@ -302,18 +304,24 @@ class _IterationComponent extends _BaseComponent {
         super();
         this._data = {};
         this._src = this.getAttribute("a-in");
-        let container = document.createElement("div");
-        container.innerHTML = super.innerHTML;
-        this._template = container;
-        this._targets = this._parseTree(this._template);
+        this._template = document.createElement("div");
+        this._template.innerHTML = super.innerHTML;
+        let child = $(this);
+        while (!(child.parentNode instanceof ShadowRoot))
+            child = child.parent;
+        this._parent = child.parentNode.srcComponent;
+        this._list = [];
         this._domUpdate();
     }
 
     update(obj) {
         let segs = this._src.split(".");
         for (let i = 0; i < segs.length - 1; i++) {
-            if (!(segs[i] in obj))
-                obj[segs[i]] = {};
+            if (!(segs[i] in obj)) {
+                this._data = [];
+                this._domUpdate();
+                return;
+            }
             obj = obj[segs[i]];
         }
         this._data = obj[segs[segs.length - 1]];
@@ -321,35 +329,46 @@ class _IterationComponent extends _BaseComponent {
     }
 
     _domUpdate() {
-        this.innerHTML = "";
-        this._data.forEach(elem => {
-            let props = {};
-            let addToProps = (elem, root) => {
-                if (elem[1] instanceof Object)
-                    elem[1].forEach(subElem => addToProps(subElem, elem[0] + "."));
-                else
-                    props[root + elem[0]] = elem[1];
-            };
-            elem.forEach(prop => addToProps(prop, ""));
-            let resolve = target => target.segs.map(seg => seg(props)).join("");
-            this._targets.forEach(target => {
-                switch (target.type) {
-                    case 0:
-                        target.elem.nodeValue = resolve(target);
-                        break;
-                    case 1:
-                        target.elem.setAttribute(target.name, resolve(target));
-                        break;
-                    case 2:
-                        target.elem.value = props[target.prop];
-                        break;
-                    case 3:
-                        target.elem.update(this._dataBacking);
-                        break;
-                }
-            });
-            this.innerHTML += this._template.innerHTML;
-        });
+        // this.innerHTML = "";
+        // this._data.forEach(elem => {
+        //     let props = {};
+        //     let addToProps = (elem, root) => {
+        //         if (elem[1] instanceof Object)
+        //             elem[1].forEach(subElem => addToProps(subElem, elem[0] + "."));
+        //         else
+        //             props[root + elem[0]] = elem[1];
+        //     };
+        //     elem.forEach(prop => addToProps(prop, ""));
+        //     let resolve = target => target.segs.map(seg => seg(props)).join("");
+        //     this._targets.forEach(target => {
+        //         switch (target.type) {
+        //             case 0:
+        //                 target.elem.nodeValue = resolve(target);
+        //                 break;
+        //             case 1:
+        //                 target.elem.setAttribute(target.name, resolve(target));
+        //                 break;
+        //             case 2:
+        //                 target.elem.value = props[target.prop];
+        //                 break;
+        //             case 3:
+        //                 target.elem.update(this._dataBacking);
+        //                 break;
+        //         }
+        //     });
+        //     let nodes = this._template.cloneNode(true).childNodes;
+        //     while (nodes.length > 0)
+        //         this.appendChild(nodes[0]);
+        // });
+        // TODO Non-destructive dom update algo
+    }
+
+    _setterFor(varName) {
+        return this._parent._setterFor(this._src + "." + varName);
+    }
+
+    _setSilent(name, val) {
+        this._parent._setSilent(this._src + "." + name, val);
     }
 
 }

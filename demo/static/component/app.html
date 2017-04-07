@@ -20,7 +20,8 @@
 <a-button id="add">Add</a-button>
 <a-foreach a-in="list">
     <div class="list-elem">
-        <p>${text}</p>
+        <span>${text}</span>
+        <input type="text" a-bind="text">
     </div>
 </a-foreach>
 <script>
@@ -31,3 +32,9 @@
         this.data.toAdd = "";
     });
 </script>
+<style>
+    .list-elem {
+        padding: 8px;
+        border: solid 1px #000;
+    }
+</style>
