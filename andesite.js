@@ -88,7 +88,74 @@ function $(selector) {
     });
 }
 
-class _StandardComponent extends HTMLElement {
+class _BaseComponent extends HTMLElement {
+
+    constructor() {
+        super();
+    }
+
+    _setterFor(varName) {
+        throw "No Implementation!";
+    }
+
+    _setSilent(name, val) {
+        throw "No Implementation!";
+    }
+
+    _parseTree(parent) {
+        let targets = [];
+        parent.childNodes.forEach(child => {
+            if (child.nodeType === 3) {
+                let segs = _BaseComponent._parseInterpolators(child.nodeValue);
+                if (!!segs)
+                    targets.push({type: 0, elem: child, segs: segs});
+            } else if (child.nodeType === 1 && child.nodeName === "A-FOREACH") {
+                targets.push({type: 3, elem: child});
+            } else if (!!child.attributes) {
+                $a.filter(child.attributes, attr => !attr.name.startsWith("a-")).forEach(attr => {
+                    let segs = _BaseComponent._parseInterpolators(attr.value);
+                    if (!!segs)
+                        targets.push({type: 1, elem: child, name: attr.name, segs: segs});
+                });
+                let attrVal;
+                if (!!(attrVal = child.getAttribute("a-bind"))) {
+                    let setter = this._setterFor(attrVal);
+                    let childSel = $(child);
+                    childSel.on("input", () => setter(childSel.value));
+                    childSel.on("change", () => setter(childSel.value));
+                    this._setSilent(attrVal, childSel.value);
+                    targets.push({type: 2, elem: $(child), prop: attrVal});
+                }
+            }
+            this._parseTree(child).forEach(target => targets.push(target));
+        });
+        return targets;
+    }
+    
+    static _parseInterpolators(str) {
+        let segs = [];
+        let match = null;
+        while ((match = str.match(_BaseComponent._propPattern)) !== null) {
+            if (match.index > 0) {
+                let preMatch = str.substring(0, match.index);
+                segs.push(vals => preMatch);
+            }
+            let varName = match[1];
+            let provider = vals => varName in vals ? vals[varName] : "!{" + varName + "}";
+            provider.isVar = true;
+            segs.push(provider);
+            str = str.substring(match.index + match[0].length);
+        }
+        if (!!str)
+            segs.push(vals => str);
+        return (segs.length < 1 || (segs.length === 1 && !segs[0].isVar)) ? null : segs;
+    }
+
+}
+
+_BaseComponent._propPattern = /\${([$A-Z_][0-9A-Z_$.]*)}/i;
+
+class _StandardComponent extends _BaseComponent {
 
     constructor() {
         super();
@@ -156,35 +223,7 @@ class _StandardComponent extends HTMLElement {
     _domInit() {
         this._shadow = this.attachShadow({mode: "closed"});
         this._shadow.innerHTML = $a._importRegistry[this.tagName.toLowerCase()];
-        this._targets = [];
-        let parseTree = parent => {
-            parent.childNodes.forEach(child => {
-                if (child.nodeType === 3) {
-                    let segs = _StandardComponent.parseInterpolators(child.nodeValue);
-                    if (!!segs)
-                        this._targets.push({type: 0, elem: child, segs: segs});
-                } else if (child.nodeType === 1 && child.nodeName === "A-FOREACH") {
-                    this._targets.push({type: 3, elem: child});
-                } else if (!!child.attributes) {
-                    $a.filter(child.attributes, attr => !attr.name.startsWith("a-")).forEach(attr => {
-                        let segs = _StandardComponent.parseInterpolators(attr.value);
-                        if (!!segs)
-                            this._targets.push({type: 1, elem: child, name: attr.name, segs: segs});
-                    });
-                    let attrVal;
-                    if (!!(attrVal = child.getAttribute("a-bind"))) {
-                        let setter = this._setterFor(attrVal);
-                        let childSel = $(child);
-                        childSel.on("input", () => setter(childSel.value));
-                        childSel.on("change", () => setter(childSel.value));
-                        setter(childSel.value);
-                        this._targets.push({type: 2, elem: $(child), prop: attrVal});
-                    }
-                }
-                parseTree(child);
-            });
-        };
-        parseTree(this._shadow);
+        this._targets = this._parseTree(this._shadow);
         $(this._shadow).find("script")
             .filter(elem => !!elem.innerText.trim())
             .forEach(elem => this._runScript(elem.innerText));
@@ -235,39 +274,38 @@ class _StandardComponent extends HTMLElement {
         return val => obj[varName] = val;
     }
 
+    _setSilent(name, val) {
+        if (name.startsWith("attr.")) {
+            this._attrBacking[name.substring(5)] = val;
+        } else {
+            let segs = name.split(".");
+            let obj = this._dataBacking;
+            for (let i = 0; i < segs.length - 1; i++) {
+                if (!(segs[i] in obj))
+                    obj[segs[i]] = {};
+                obj = obj[segs[i]];
+            }
+            obj[segs[segs.length - 1]] = val;
+        }
+    }
+
     _runScript(script) {
         let $ = selector => typeof(selector) === "string" ? $a.query(this._shadow).find(selector) : $a.query(selector);
         eval(script);
     }
 
-    static parseInterpolators(str) {
-        let segs = [];
-        let match = null;
-        while ((match = str.match(_StandardComponent._propPattern)) !== null) {
-            if (match.index > 0) {
-                let preMatch = str.substring(0, match.index);
-                segs.push(vals => preMatch);
-            }
-            let varName = match[1];
-            let provider = vals => varName in vals ? vals[varName] : "!{" + varName + "}";
-            provider.isVar = true;
-            segs.push(provider);
-            str = str.substring(match.index + match[0].length);
-        }
-        if (!!str)
-            segs.push(vals => str);
-        return (segs.length < 1 || (segs.length === 1 && !segs[0].isVar)) ? null : segs;
-    }
-
 }
 
-class _IterationComponent extends HTMLElement {
+class _IterationComponent extends _BaseComponent {
 
     constructor() {
         super();
         this._data = {};
         this._src = this.getAttribute("a-in");
-        this._template = _StandardComponent.parseInterpolators(super.innerHTML);
+        let container = document.createElement("div");
+        container.innerHTML = super.innerHTML;
+        this._template = container;
+        this._targets = this._parseTree(this._template);
         this._domUpdate();
     }
 
@@ -293,13 +331,28 @@ class _IterationComponent extends HTMLElement {
                     props[root + elem[0]] = elem[1];
             };
             elem.forEach(prop => addToProps(prop, ""));
-            this.innerHTML += this._template.map(seg => seg(props)).join("");
+            let resolve = target => target.segs.map(seg => seg(props)).join("");
+            this._targets.forEach(target => {
+                switch (target.type) {
+                    case 0:
+                        target.elem.nodeValue = resolve(target);
+                        break;
+                    case 1:
+                        target.elem.setAttribute(target.name, resolve(target));
+                        break;
+                    case 2:
+                        target.elem.value = props[target.prop];
+                        break;
+                    case 3:
+                        target.elem.update(this._dataBacking);
+                        break;
+                }
+            });
+            this.innerHTML += this._template.innerHTML;
         });
     }
 
 }
-
-_StandardComponent._propPattern = /\${([$A-Z_][0-9A-Z_$.]*)}/i;
 
 class _MessageBus {
 
