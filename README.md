@@ -31,6 +31,8 @@ static/component/app.html
 <hr>
 <p>Checkbox state: ${bool}</p>
 <input type="checkbox" a-bind="bool">
+<input type="checkbox" a-bind="bool">
+<input type="checkbox" a-bind="bool">
 ```
 static/component/button.html
 ```html

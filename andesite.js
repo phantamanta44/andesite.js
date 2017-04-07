@@ -166,6 +166,7 @@ class _StandardComponent extends HTMLElement {
                         childSel.on("input", () => setter(childSel.value));
                         childSel.on("change", () => setter(childSel.value));
                         setter(childSel.value);
+                        this._targets.push({type: 2, elem: $(child), prop: attrVal});
                     }
                 }
                 parseTree(child);
@@ -195,6 +196,9 @@ class _StandardComponent extends HTMLElement {
                     break;
                 case 1:
                     target.elem.setAttribute(target.name, resolve(target));
+                    break;
+                case 2:
+                    target.elem.value = props[target.prop];
                     break;
             }
         });
